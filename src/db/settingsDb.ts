@@ -82,3 +82,10 @@ export async function resetFreeConversions(): Promise<void> {
   const db = await getDb();
   await db.runAsync('UPDATE settings SET free_conversions_used = 0 WHERE id = 1;');
 }
+
+export async function resetOnboarding(): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    "UPDATE settings SET onboarding_complete = 0, diet_id = NULL, allergens = '[]' WHERE id = 1;"
+  );
+}

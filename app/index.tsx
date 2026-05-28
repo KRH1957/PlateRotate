@@ -11,7 +11,10 @@ export default function Index() {
   useEffect(() => {
     getSettings()
       .then((settings) => {
-        setOnboardingDone(settings.onboardingComplete);
+        // Require both the flag AND a diet selection — the flag alone can persist
+        // across reinstalls if app data survives the install (e.g. adb install).
+        // Without a diet there is nothing to convert to, so the app is unusable.
+        setOnboardingDone(settings.onboardingComplete && settings.dietId !== null);
       })
       .catch(() => {
         // If we can't read settings, send to onboarding — safest default

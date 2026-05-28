@@ -13,7 +13,7 @@ import DietCard from '../../src/components/DietCard';
 import AllergenToggle from '../../src/components/AllergenToggle';
 import { DIETS, ALLERGENS } from '../../src/constants/diets';
 import { DietId, AllergenId } from '../../src/types';
-import { getSettings, setDiet, setAllergens } from '../../src/db/settingsDb';
+import { getSettings, setDiet, setAllergens, resetOnboarding } from '../../src/db/settingsDb';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 
 export default function SettingsScreen() {
@@ -123,6 +123,36 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Reset — clears diet + reruns onboarding */}
+        <TouchableOpacity
+          style={styles.resetButton}
+          onPress={() =>
+            Alert.alert(
+              'Restart Setup',
+              'This will clear your diet and allergen selection and restart the setup flow. Your conversion history and favorites will not be deleted.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Reset',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await resetOnboarding();
+                      router.replace('/');
+                    } catch {
+                      Alert.alert('Error', 'Could not reset. Please try again.');
+                    }
+                  },
+                },
+              ]
+            )
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Restart setup"
+        >
+          <Text style={styles.resetText}>Restart Setup</Text>
+        </TouchableOpacity>
+
         {/* App info */}
         <Text style={styles.appInfo}>PlateRotate v1.0.0 · by KRH Digital</Text>
         <Text style={styles.appInfo}>Your data never leaves your device.</Text>
@@ -219,6 +249,21 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
     fontSize: Typography.body,
     fontWeight: Typography.bold,
+  },
+  resetButton: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.full,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  resetText: {
+    color: Colors.textMuted,
+    fontSize: Typography.sm,
+    fontWeight: Typography.medium,
   },
   appInfo: {
     fontSize: Typography.xs,
