@@ -34,8 +34,16 @@ export async function setAllergens(allergens: AllergenId[]): Promise<void> {
 
 export async function completeOnboarding(dietId: DietId, allergens: AllergenId[]): Promise<void> {
   const db = await getDb();
+  // UPSERT: inserts the row if it somehow doesn't exist, otherwise updates in place.
+  // ON CONFLICT only touches the three onboarding fields — free_conversions_used and
+  // subscription_override are left alone if the row already exists.
   await db.runAsync(
-    'UPDATE settings SET onboarding_complete = 1, diet_id = ?, allergens = ? WHERE id = 1;',
+    `INSERT INTO settings (id, onboarding_complete, diet_id, allergens, free_conversions_used)
+     VALUES (1, 1, ?, ?, 0)
+     ON CONFLICT(id) DO UPDATE SET
+       onboarding_complete = 1,
+       diet_id             = excluded.diet_id,
+       allergens           = excluded.allergens;`,
     [dietId, JSON.stringify(allergens)]
   );
 }

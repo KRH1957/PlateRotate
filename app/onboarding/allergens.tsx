@@ -27,7 +27,8 @@ export default function AllergensScreen() {
     try {
       await completeOnboarding(dietId, Array.from(enabled));
       router.replace('/(tabs)/convert');
-    } catch {
+    } catch (err) {
+      console.error('completeOnboarding failed:', err instanceof Error ? err.message : String(err));
       Alert.alert('Something went wrong', 'Could not save your settings. Please try again.');
     } finally {
       setSaving(false);
