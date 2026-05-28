@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -38,6 +38,7 @@ export default function ConvertScreen() {
   const [freeUsed, setFreeUsed] = useState(0);
   const [hasOverride, setHasOverride] = useState(false);
   const [favoriteId, setFavoriteId] = useState<number | null>(null);
+  const inputRef = useRef<TextInput>(null);
 
   // Reload settings whenever this screen comes into focus (user may have changed diet in Settings)
   useFocusEffect(
@@ -186,8 +187,9 @@ export default function ConvertScreen() {
           {screenState !== 'result' && (
             <>
               <View style={styles.inputCard}>
-                <Text style={styles.inputLabel}>What did you eat?</Text>
+                <Text style={styles.inputLabel}>What do you want to eat?</Text>
                 <TextInput
+                  ref={inputRef}
                   style={styles.input}
                   value={mealInput}
                   onChangeText={setMealInput}
@@ -201,19 +203,13 @@ export default function ConvertScreen() {
                 />
               </View>
 
-              {/* Mic button — keyboard mic instruction for v1 */}
+              {/* Mic button — focuses the input so the keyboard (with its mic key) opens */}
               <TouchableOpacity
                 style={styles.micButton}
-                onPress={() =>
-                  Alert.alert(
-                    'Voice input',
-                    'Tap the microphone button on your device keyboard to speak your meal, then tap Convert.',
-                    [{ text: 'Got it' }]
-                  )
-                }
+                onPress={() => inputRef.current?.focus()}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel="Voice input instructions"
+                accessibilityLabel="Tap to speak your meal"
               >
                 <Ionicons name="mic" size={28} color={Colors.textInverse} />
                 <Text style={styles.micLabel}>Speak Your Meal</Text>
