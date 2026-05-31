@@ -3,22 +3,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const dotenv_1 = __importDefault(require("dotenv"));
 const express_1 = __importDefault(require("express"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+// Load .env file if present — covers platforms that use file-based env config
+// rather than injecting vars directly into the process environment.
+dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT ?? 3000;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const APP_TOKEN = process.env.APP_TOKEN;
 const MODEL = 'claude-haiku-4-5-20251001';
-// Fail immediately at startup if required config is missing
-if (!ANTHROPIC_API_KEY) {
-    console.error('ANTHROPIC_API_KEY environment variable is not set. Server cannot start.');
-    process.exit(1);
-}
-if (!APP_TOKEN) {
-    console.error('APP_TOKEN environment variable is not set. Server cannot start.');
-    process.exit(1);
-}
+// Log startup state — visible in xCloud's log viewer
+console.log(`[startup] PlateRotate proxy starting on port ${PORT}`);
+console.log(`[startup] Working directory: ${process.cwd()}`);
+console.log(`[startup] Node version: ${process.version}`);
+console.log(`[startup] ANTHROPIC_API_KEY set: ${!!ANTHROPIC_API_KEY}`);
+console.log(`[startup] APP_TOKEN set: ${!!APP_TOKEN}`);
 app.use(express_1.default.json({ limit: '16kb' }));
 // Rate limit: 30 requests per minute per IP — stops bots and accidental abuse
 const limiter = (0, express_rate_limit_1.default)({
@@ -29,9 +30,13 @@ const limiter = (0, express_rate_limit_1.default)({
     message: { error: 'Too many requests. Please wait a moment and try again.' },
 });
 app.use(limiter);
-// Every request must include the app token in the Authorization header.
+// Every request to /convert must include the app token in the Authorization header.
 // This blocks random internet traffic from using the proxy as a free Anthropic gateway.
 function requireAppToken(req, res, next) {
+    if (!APP_TOKEN) {
+        res.status(503).json({ error: 'Server is not configured. Contact support.' });
+        return;
+    }
     const auth = req.headers['authorization'] ?? '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     if (!token || token !== APP_TOKEN) {
@@ -63,6 +68,10 @@ function extractJson(raw) {
     return raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
 }
 app.post('/convert', requireAppToken, async (req, res) => {
+    if (!ANTHROPIC_API_KEY) {
+        res.status(503).json({ error: 'Server is not configured. Contact support.' });
+        return;
+    }
     const body = req.body;
     // Basic input validation
     if (!body.originalMeal || typeof body.originalMeal !== 'string' || body.originalMeal.trim().length === 0) {
@@ -96,7 +105,6 @@ app.post('/convert', requireAppToken, async (req, res) => {
             }),
         });
         if (!anthropicRes.ok) {
-            // Don't expose Anthropic error details to the client — log them server-side
             console.error(`Anthropic error ${anthropicRes.status}:`, await anthropicRes.text());
             if (anthropicRes.status === 429) {
                 res.status(429).json({ error: 'Service is busy. Please wait a moment and try again.' });
@@ -127,10 +135,21 @@ app.post('/convert', requireAppToken, async (req, res) => {
         res.status(500).json({ error: 'Server error. Please try again in a moment.' });
     }
 });
-// Health check endpoint — used by xCloud to verify the server is running
+// Health check — always responds so we can diagnose remotely.
+// Reports whether config vars are set (true/false only — never logs the actual values).
 app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'plate-rotate-proxy' });
+    res.json({
+        status: 'ok',
+        service: 'plate-rotate-proxy',
+        node: process.version,
+        cwd: process.cwd(),
+        config: {
+            hasApiKey: !!ANTHROPIC_API_KEY,
+            hasAppToken: !!APP_TOKEN,
+            port: PORT,
+        },
+    });
 });
 app.listen(PORT, () => {
-    console.log(`PlateRotate proxy running on port ${PORT}`);
+    console.log(`[ready] PlateRotate proxy listening on port ${PORT}`);
 });
