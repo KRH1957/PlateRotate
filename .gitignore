@@ -9,6 +9,11 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Un-ignore the proxy server's compiled output — it must be committed so
+# xCloud can run it without needing TypeScript installed
+!proxy/dist/
+!proxy/dist/server.js
+
 # Native
 .kotlin/
 *.orig.*
