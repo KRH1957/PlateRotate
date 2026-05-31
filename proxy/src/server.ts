@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT ?? 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const APP_TOKEN = process.env.APP_TOKEN;
 const MODEL = 'claude-haiku-4-5-20251001';

@@ -10,7 +10,7 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 // rather than injecting vars directly into the process environment.
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-const PORT = process.env.PORT ?? 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const APP_TOKEN = process.env.APP_TOKEN;
 const MODEL = 'claude-haiku-4-5-20251001';
