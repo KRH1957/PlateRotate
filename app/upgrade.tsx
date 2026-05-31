@@ -13,8 +13,8 @@ const PLANS = [
     highlight: false,
     features: [
       '5 meal conversions total',
-      'No meal plans',
-      'No favorites sync',
+      'No conversion history',
+      'No favorites',
     ],
   },
   {

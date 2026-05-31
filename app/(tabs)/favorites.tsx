@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getFavorites, deleteFavorite } from '../../src/db/favoritesDb';
+import { getSubscriptionOverride } from '../../src/db/settingsDb';
 import { Favorite, ConversionResult } from '../../src/types';
 import { DIETS } from '../../src/constants/diets';
 import ConversionResultCard from '../../src/components/ConversionResultCard';
@@ -29,10 +30,15 @@ function formatDate(ts: number): string {
 export default function FavoritesScreen() {
   const [favorites, setFavorites] = useState<ParsedFavorite[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [hasOverride, setHasOverride] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      getFavorites().then((rows) => {
+      async function load() {
+        const override = await getSubscriptionOverride();
+        setHasOverride(override);
+        if (!override) return; // Free users have no favorites to load
+        const rows = await getFavorites();
         const parsed: ParsedFavorite[] = [];
         for (const fav of rows) {
           try {
@@ -48,7 +54,8 @@ export default function FavoritesScreen() {
           }
         }
         setFavorites(parsed);
-      });
+      }
+      load();
     }, [])
   );
 
@@ -77,7 +84,26 @@ export default function FavoritesScreen() {
         <Text style={styles.title}>Favorites</Text>
         <Text style={styles.subtitle}>Conversions you've saved for quick reuse</Text>
 
-        {favorites.length === 0 ? (
+        {/* Free tier: favorites require Basic or Pro */}
+        {!hasOverride ? (
+          <View style={styles.upgradeWall}>
+            <Ionicons name="lock-closed-outline" size={56} color={Colors.border} />
+            <Text style={styles.upgradeTitle}>Favorites require Basic or Pro</Text>
+            <Text style={styles.upgradeBody}>
+              Upgrade to save your best meal adaptations and access them instantly.
+            </Text>
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              onPress={() => router.push('/upgrade')}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="See upgrade plans"
+            >
+              <Ionicons name="arrow-up-circle" size={20} color={Colors.textInverse} />
+              <Text style={styles.upgradeButtonText}>See Plans</Text>
+            </TouchableOpacity>
+          </View>
+        ) : favorites.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="heart-outline" size={64} color={Colors.border} />
             <Text style={styles.emptyTitle}>No favorites yet</Text>
@@ -175,6 +201,40 @@ const styles = StyleSheet.create({
     fontSize: Typography.body,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxl,
+  },
+  upgradeWall: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xxxl,
+    gap: Spacing.md,
+  },
+  upgradeTitle: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.semibold,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  upgradeBody: {
+    fontSize: Typography.body,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: Spacing.base,
+  },
+  upgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    height: TAP_TARGET + 8,
+    paddingHorizontal: Spacing.xxl,
+    marginTop: Spacing.sm,
+  },
+  upgradeButtonText: {
+    fontSize: Typography.body,
+    fontWeight: Typography.bold,
+    color: Colors.textInverse,
   },
   emptyState: {
     alignItems: 'center',

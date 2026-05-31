@@ -112,9 +112,12 @@ export default function ConvertScreen() {
 
   async function handleToggleFavorite() {
     if (!result) return;
-
+    // Favorites are a paid feature — free tier users go to upgrade
+    if (!hasOverride) {
+      router.push('/upgrade');
+      return;
+    }
     if (favoriteId !== null) {
-      // Already favorited — remove it
       await deleteFavorite(favoriteId);
       setFavoriteId(null);
     } else {
@@ -187,7 +190,7 @@ export default function ConvertScreen() {
           {screenState !== 'result' && (
             <>
               <View style={styles.inputCard}>
-                <Text style={styles.inputLabel}>What do you want to eat?</Text>
+                <Text style={styles.inputLabel}>What would you like to eat?</Text>
                 <TextInput
                   ref={inputRef}
                   style={styles.input}

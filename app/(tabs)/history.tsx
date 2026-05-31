@@ -7,15 +7,16 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getHistory } from '../../src/db/historyDb';
+import { getHistory, deleteHistoryEntry } from '../../src/db/historyDb';
 import { saveFavorite } from '../../src/db/favoritesDb';
+import { getSubscriptionOverride } from '../../src/db/settingsDb';
 import { HistoryEntry, ConversionResult } from '../../src/types';
 import { DIETS } from '../../src/constants/diets';
 import ConversionResultCard from '../../src/components/ConversionResultCard';
-import { Colors, Typography, Spacing, Radius } from '../../src/theme';
+import { Colors, Typography, Spacing, Radius, TAP_TARGET } from '../../src/theme';
 
 type ParsedEntry = Omit<HistoryEntry, 'convertedMeal'> & { result: ConversionResult };
 
@@ -30,12 +31,16 @@ function formatDate(ts: number): string {
 export default function HistoryScreen() {
   const [entries, setEntries] = useState<ParsedEntry[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  // Track entries saved to favorites during this session so the heart stays filled
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
+  const [hasOverride, setHasOverride] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      getHistory().then((rows) => {
+      async function load() {
+        const override = await getSubscriptionOverride();
+        setHasOverride(override);
+        if (!override) return; // Free users don't need history loaded
+        const rows = await getHistory();
         const parsed: ParsedEntry[] = [];
         for (const entry of rows) {
           try {
@@ -51,7 +56,8 @@ export default function HistoryScreen() {
           }
         }
         setEntries(parsed);
-      });
+      }
+      load();
     }, [])
   );
 
@@ -68,13 +74,51 @@ export default function HistoryScreen() {
     }
   }
 
+  function confirmDelete(entry: ParsedEntry) {
+    Alert.alert(
+      'Delete entry?',
+      `Remove "${entry.result.convertedMeal}" from your history?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteHistoryEntry(entry.id);
+            setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+            if (expandedId === entry.id) setExpandedId(null);
+          },
+        },
+      ]
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>History</Text>
         <Text style={styles.subtitle}>All your past meal conversions</Text>
 
-        {entries.length === 0 ? (
+        {/* Free tier: history requires Basic or Pro */}
+        {!hasOverride ? (
+          <View style={styles.upgradeWall}>
+            <Ionicons name="lock-closed-outline" size={56} color={Colors.border} />
+            <Text style={styles.upgradeTitle}>History requires Basic or Pro</Text>
+            <Text style={styles.upgradeBody}>
+              Upgrade to see all your past meal conversions and never lose a great adaptation.
+            </Text>
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              onPress={() => router.push('/upgrade')}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="See upgrade plans"
+            >
+              <Ionicons name="arrow-up-circle" size={20} color={Colors.textInverse} />
+              <Text style={styles.upgradeButtonText}>See Plans</Text>
+            </TouchableOpacity>
+          </View>
+        ) : entries.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="time-outline" size={64} color={Colors.border} />
             <Text style={styles.emptyTitle}>No conversions yet</Text>
@@ -133,6 +177,16 @@ export default function HistoryScreen() {
                 <View style={styles.dietBadge}>
                   <Text style={styles.dietEmoji}>{diet?.emoji ?? '🍽️'}</Text>
                 </View>
+
+                {/* Delete button — same pattern as favorites */}
+                <TouchableOpacity
+                  style={styles.trashButton}
+                  onPress={() => confirmDelete(entry)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete this history entry"
+                >
+                  <Ionicons name="trash-outline" size={18} color={Colors.textMuted} />
+                </TouchableOpacity>
               </TouchableOpacity>
             );
           })
@@ -159,6 +213,40 @@ const styles = StyleSheet.create({
     fontSize: Typography.body,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxl,
+  },
+  upgradeWall: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xxxl,
+    gap: Spacing.md,
+  },
+  upgradeTitle: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.semibold,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  upgradeBody: {
+    fontSize: Typography.body,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: Spacing.base,
+  },
+  upgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    height: TAP_TARGET + 8,
+    paddingHorizontal: Spacing.xxl,
+    marginTop: Spacing.sm,
+  },
+  upgradeButtonText: {
+    fontSize: Typography.body,
+    fontWeight: Typography.bold,
+    color: Colors.textInverse,
   },
   emptyState: {
     alignItems: 'center',
@@ -222,6 +310,12 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   dietEmoji: { fontSize: 16 },
+  trashButton: {
+    width: TAP_TARGET,
+    height: TAP_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   expandedWrapper: {
     marginBottom: Spacing.sm,
   },

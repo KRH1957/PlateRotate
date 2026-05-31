@@ -1,77 +1,45 @@
 import { ConversionModule, ConversionInput, ConversionApiResponse } from './index';
 import { ConversionResult } from '../../types';
 
-const API_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-haiku-4-5-20251001';
-
-// Strips markdown code fences Claude sometimes wraps JSON in
-function extractJson(raw: string): string {
-  return raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
-}
-
-function buildPrompt(input: ConversionInput): string {
-  const allergenLine =
-    input.allergens.length > 0
-      ? `ALLERGEN RESTRICTIONS — you MUST exclude ALL of these from the converted recipe: ${input.allergenLabels.join(', ')}.`
-      : 'No allergen restrictions.';
-
-  return `You are a meal conversion expert. Convert the meal below to the ${input.dietLabel} diet.
-
-Meal to convert: ${input.originalMeal}
-Target diet: ${input.dietLabel}
-${allergenLine}
-
-Return ONLY a valid JSON object — no markdown, no explanation, no extra text. Use exactly this structure:
-{
-  "convertedMealName": "The name of the converted meal",
-  "ingredients": ["ingredient with quantity 1", "ingredient with quantity 2"],
-  "instructions": ["Step 1: ...", "Step 2: ..."],
-  "notes": "Brief note on key substitutions or tips for this diet"
-}`;
-}
+// Points to the proxy server — never to Anthropic directly.
+// The Anthropic API key lives on the server. It is not in this app.
+const PROXY_URL = process.env.EXPO_PUBLIC_PROXY_URL;
+const APP_TOKEN = process.env.EXPO_PUBLIC_APP_TOKEN;
 
 export const claudeHaikuConversion: ConversionModule = {
   async convertMeal(input: ConversionInput): Promise<ConversionResult> {
-    const apiKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
-    if (!apiKey || apiKey === 'your-anthropic-api-key-here') {
-      throw new Error('API key not configured. Add your Anthropic API key to .env.');
+    if (!PROXY_URL) {
+      throw new Error('Proxy URL not configured. Add EXPO_PUBLIC_PROXY_URL to .env.');
     }
 
-    const response = await fetch(API_URL, {
+    const response = await fetch(`${PROXY_URL}/convert`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${APP_TOKEN ?? ''}`,
       },
       body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: buildPrompt(input) }],
+        originalMeal: input.originalMeal,
+        dietId: input.dietId,
+        dietLabel: input.dietLabel,
+        allergens: input.allergens,
+        allergenLabels: input.allergenLabels,
       }),
     });
 
     if (!response.ok) {
-      // Map common HTTP errors to messages Kevin can understand
-      if (response.status === 401) throw new Error('Invalid API key. Check your .env file.');
+      let errorMessage = 'Conversion failed. Please try again.';
+      try {
+        const errBody = await response.json() as { error?: string };
+        if (errBody.error) errorMessage = errBody.error;
+      } catch {
+        // If the error body isn't JSON, use the default message above
+      }
       if (response.status === 429) throw new Error('Too many requests. Wait a moment and try again.');
-      if (response.status >= 500) throw new Error('Anthropic service is temporarily unavailable. Try again in a minute.');
-      throw new Error(`Conversion failed (error ${response.status}). Please try again.`);
+      throw new Error(errorMessage);
     }
 
-    const data = await response.json() as {
-      content: Array<{ type: string; text: string }>;
-    };
-
-    const rawText = data.content?.find((c) => c.type === 'text')?.text ?? '';
-    if (!rawText) throw new Error('No response from conversion service. Please try again.');
-
-    let parsed: ConversionApiResponse;
-    try {
-      parsed = JSON.parse(extractJson(rawText)) as ConversionApiResponse;
-    } catch {
-      throw new Error('Something went wrong with the conversion. Please try again.');
-    }
+    const parsed = await response.json() as ConversionApiResponse;
 
     if (!parsed.convertedMealName || !Array.isArray(parsed.ingredients) || !Array.isArray(parsed.instructions)) {
       throw new Error('Conversion returned unexpected data. Please try again.');
