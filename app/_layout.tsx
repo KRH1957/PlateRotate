@@ -51,6 +51,15 @@ export default function RootLayout() {
             headerShown: false,
           }}
         />
+
+        {/* Deep link landing zone after Stripe payment — platerotate://checkout-success */}
+        <Stack.Screen
+          name="checkout-success"
+          options={{
+            headerShown: false,
+            animation: 'fade',
+          }}
+        />
       </Stack>
     </SafeAreaProvider>
   );

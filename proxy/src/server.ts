@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import express, { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
+import Stripe from 'stripe';
 
 // Load .env file if present — covers platforms that use file-based env config
 // rather than injecting vars directly into the process environment.
@@ -10,14 +11,23 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const APP_TOKEN = process.env.APP_TOKEN;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_PRICE_BASIC_MONTHLY = process.env.STRIPE_PRICE_BASIC_MONTHLY;
+const STRIPE_PRICE_PRO_MONTHLY = process.env.STRIPE_PRICE_PRO_MONTHLY;
 const MODEL = 'claude-haiku-4-5-20251001';
 
-// Log startup state — visible in xCloud's log viewer
+// Log startup state — visible in Railway's log viewer
 console.log(`[startup] PlateRotate proxy starting on port ${PORT}`);
 console.log(`[startup] Working directory: ${process.cwd()}`);
 console.log(`[startup] Node version: ${process.version}`);
 console.log(`[startup] ANTHROPIC_API_KEY set: ${!!ANTHROPIC_API_KEY}`);
 console.log(`[startup] APP_TOKEN set: ${!!APP_TOKEN}`);
+console.log(`[startup] STRIPE_SECRET_KEY set: ${!!STRIPE_SECRET_KEY}`);
+console.log(`[startup] STRIPE_PRICE_BASIC_MONTHLY set: ${!!STRIPE_PRICE_BASIC_MONTHLY}`);
+console.log(`[startup] STRIPE_PRICE_PRO_MONTHLY set: ${!!STRIPE_PRICE_PRO_MONTHLY}`);
+
+// Stripe client — null if key not set (graceful degradation)
+const stripe: Stripe | null = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 
 app.use(express.json({ limit: '16kb' }));
 
@@ -31,8 +41,8 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Every request to /convert must include the app token in the Authorization header.
-// This blocks random internet traffic from using the proxy as a free Anthropic gateway.
+// Every request to protected routes must include the app token in the Authorization header.
+// This blocks random internet traffic from using the proxy as a free gateway.
 function requireAppToken(req: Request, res: Response, next: NextFunction): void {
   if (!APP_TOKEN) {
     res.status(503).json({ error: 'Server is not configured. Contact support.' });
@@ -47,6 +57,8 @@ function requireAppToken(req: Request, res: Response, next: NextFunction): void 
   next();
 }
 
+// ─── Meal Conversion ─────────────────────────────────────────────────────────
+
 interface ConvertRequestBody {
   originalMeal: string;
   dietId: string;
@@ -59,7 +71,6 @@ interface AnthropicResponse {
   content: Array<{ type: string; text: string }>;
 }
 
-// The prompt template lives here on the server — not in the app binary
 function buildPrompt(body: ConvertRequestBody): string {
   const allergenLine =
     body.allergens.length > 0
@@ -93,7 +104,6 @@ app.post('/convert', requireAppToken, async (req: Request, res: Response): Promi
 
   const body = req.body as ConvertRequestBody;
 
-  // Basic input validation
   if (!body.originalMeal || typeof body.originalMeal !== 'string' || body.originalMeal.trim().length === 0) {
     res.status(400).json({ error: 'originalMeal is required.' });
     return;
@@ -160,8 +170,158 @@ app.post('/convert', requireAppToken, async (req: Request, res: Response): Promi
   }
 });
 
-// Health check — always responds so we can diagnose remotely.
-// Reports whether config vars are set (true/false only — never logs the actual values).
+// ─── Stripe Payments ─────────────────────────────────────────────────────────
+
+interface CheckoutSessionBody {
+  plan: 'basic' | 'pro';
+  successUrl: string;
+  cancelUrl: string;
+}
+
+// Creates a Stripe Checkout session and returns the hosted payment URL.
+// The app opens this URL in the device browser. When payment completes,
+// Stripe redirects to successUrl which deep-links back into the app.
+app.post('/create-checkout-session', requireAppToken, async (req: Request, res: Response): Promise<void> => {
+  if (!stripe) {
+    res.status(503).json({ error: 'Payment system not configured. Contact support.' });
+    return;
+  }
+
+  const body = req.body as CheckoutSessionBody;
+
+  if (!body.plan || !['basic', 'pro'].includes(body.plan)) {
+    res.status(400).json({ error: 'plan must be "basic" or "pro".' });
+    return;
+  }
+  if (!body.successUrl || !body.cancelUrl) {
+    res.status(400).json({ error: 'successUrl and cancelUrl are required.' });
+    return;
+  }
+
+  const priceId = body.plan === 'basic' ? STRIPE_PRICE_BASIC_MONTHLY : STRIPE_PRICE_PRO_MONTHLY;
+  if (!priceId) {
+    console.error(`Missing price ID for plan: ${body.plan}`);
+    res.status(503).json({ error: 'This plan is not yet available. Please try again later.' });
+    return;
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: body.successUrl,
+      cancel_url: body.cancelUrl,
+      customer_creation: 'always',
+      allow_promotion_codes: true,
+      metadata: { plan: body.plan },
+    });
+
+    if (!session.url) {
+      res.status(502).json({ error: 'Could not generate checkout link. Please try again.' });
+      return;
+    }
+
+    res.json({ url: session.url, sessionId: session.id });
+  } catch (err) {
+    console.error('Stripe create-checkout-session error:', err);
+    res.status(500).json({ error: 'Could not start checkout. Please try again.' });
+  }
+});
+
+interface VerifySessionBody {
+  sessionId: string;
+}
+
+// Verifies a completed checkout session and returns the plan and email.
+// Called by the app immediately after the Stripe success deep link fires.
+app.post('/verify-session', requireAppToken, async (req: Request, res: Response): Promise<void> => {
+  if (!stripe) {
+    res.status(503).json({ error: 'Payment system not configured.' });
+    return;
+  }
+
+  const body = req.body as VerifySessionBody;
+  if (!body.sessionId || typeof body.sessionId !== 'string') {
+    res.status(400).json({ error: 'sessionId is required.' });
+    return;
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(body.sessionId, {
+      expand: ['customer'],
+    });
+
+    const paid = session.payment_status === 'paid';
+    const plan = (session.metadata?.plan ?? null) as 'basic' | 'pro' | null;
+    const email =
+      session.customer_email ??
+      session.customer_details?.email ??
+      null;
+
+    res.json({ paid, plan, email });
+  } catch (err) {
+    console.error('Stripe verify-session error:', err);
+    res.status(500).json({ error: 'Could not verify payment. Please try again.' });
+  }
+});
+
+interface RestoreSubscriptionBody {
+  email: string;
+}
+
+// Looks up an active Stripe subscription by customer email.
+// Used by the "Restore Purchase" flow when users reinstall the app.
+app.post('/restore-subscription', requireAppToken, async (req: Request, res: Response): Promise<void> => {
+  if (!stripe) {
+    res.status(503).json({ error: 'Payment system not configured.' });
+    return;
+  }
+
+  const body = req.body as RestoreSubscriptionBody;
+  if (!body.email || typeof body.email !== 'string' || !body.email.includes('@')) {
+    res.status(400).json({ error: 'A valid email address is required.' });
+    return;
+  }
+
+  try {
+    const customers = await stripe.customers.list({ email: body.email.trim().toLowerCase(), limit: 5 });
+
+    if (customers.data.length === 0) {
+      res.json({ found: false, plan: null });
+      return;
+    }
+
+    // Check subscriptions for each matching customer — take the highest active plan found
+    let bestPlan: 'basic' | 'pro' | null = null;
+
+    outer: for (const customer of customers.data) {
+      const subs = await stripe.subscriptions.list({
+        customer: customer.id,
+        status: 'active',
+        limit: 10,
+      });
+
+      for (const sub of subs.data) {
+        const subPlan = sub.metadata?.['plan'] as string | undefined;
+        if (subPlan === 'pro') {
+          bestPlan = 'pro';
+          break outer;
+        }
+        if (subPlan === 'basic') {
+          bestPlan = 'basic';
+        }
+      }
+    }
+
+    res.json({ found: bestPlan !== null, plan: bestPlan });
+  } catch (err) {
+    console.error('Stripe restore-subscription error:', err);
+    res.status(500).json({ error: 'Could not look up your subscription. Please try again.' });
+  }
+});
+
+// ─── Health Check ─────────────────────────────────────────────────────────────
+
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
@@ -171,6 +331,8 @@ app.get('/health', (_req: Request, res: Response) => {
     config: {
       hasApiKey: !!ANTHROPIC_API_KEY,
       hasAppToken: !!APP_TOKEN,
+      hasStripeKey: !!STRIPE_SECRET_KEY,
+      hasStripePrices: !!(STRIPE_PRICE_BASIC_MONTHLY && STRIPE_PRICE_PRO_MONTHLY),
       port: PORT,
     },
   });

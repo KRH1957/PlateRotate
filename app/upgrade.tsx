@@ -1,13 +1,25 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  TextInput,
+  Linking,
+  Alert,
+} from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { setSubscriptionOverride } from '../src/db/settingsDb';
+import { stripeCheckoutModule } from '../src/modules/subscription/stripeCheckout';
+import { setSubscription, setSubscriptionOverride } from '../src/db/settingsDb';
 import { Colors, Typography, Spacing, Radius, TAP_TARGET } from '../src/theme';
 
 const PLANS = [
   {
-    id: 'free',
+    id: 'free' as const,
     name: 'Free',
     price: null,
     highlight: false,
@@ -18,9 +30,9 @@ const PLANS = [
     ],
   },
   {
-    id: 'basic',
+    id: 'basic' as const,
     name: 'Basic',
-    price: '$2.99/month or $29/year',
+    price: '$2.99/month',
     highlight: false,
     features: [
       'Unlimited meal conversions',
@@ -29,9 +41,9 @@ const PLANS = [
     ],
   },
   {
-    id: 'pro',
+    id: 'pro' as const,
     name: 'Pro',
-    price: '$5.99/month or $59/year',
+    price: '$5.99/month',
     highlight: true,
     features: [
       'Everything in Basic',
@@ -42,21 +54,81 @@ const PLANS = [
   },
 ] as const;
 
+type PaidPlan = 'basic' | 'pro';
+type RestoreState = 'idle' | 'input' | 'loading' | 'success' | 'not-found' | 'error';
+
 export default function UpgradeScreen() {
-  function handleUpgrade(planName: string) {
-    Alert.alert(
-      'Coming soon',
-      `In-app purchase coming in v1.1 — thank you for your interest in ${planName}!`,
-      [{ text: 'Got it' }]
-    );
+  const [checkoutLoading, setCheckoutLoading] = useState<PaidPlan | null>(null);
+  const [checkoutError, setCheckoutError] = useState('');
+
+  const [restoreState, setRestoreState] = useState<RestoreState>('idle');
+  const [restoreEmail, setRestoreEmail] = useState('');
+  const [restoreError, setRestoreError] = useState('');
+
+  async function handleUpgrade(plan: PaidPlan) {
+    setCheckoutLoading(plan);
+    setCheckoutError('');
+    try {
+      const { url } = await stripeCheckoutModule.createCheckoutSession({ plan });
+      await Linking.openURL(url);
+      // User is now in the browser completing payment.
+      // Return happens via the platerotate://checkout-success deep link.
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not start checkout. Please try again.';
+      setCheckoutError(msg);
+    } finally {
+      setCheckoutLoading(null);
+    }
   }
 
-  async function handleRestorePurchase() {
-    await setSubscriptionOverride(true);
+  function handleRestoreTap() {
+    if (restoreState === 'idle' || restoreState === 'not-found' || restoreState === 'error') {
+      setRestoreState('input');
+      setRestoreError('');
+    }
+  }
+
+  async function handleRestoreSubmit() {
+    const email = restoreEmail.trim();
+    if (!email || !email.includes('@')) {
+      setRestoreError('Please enter a valid email address.');
+      return;
+    }
+    setRestoreState('loading');
+    setRestoreError('');
+    try {
+      const result = await stripeCheckoutModule.restoreSubscription(email);
+      if (result.found && result.plan) {
+        await setSubscription(result.plan, email);
+        setRestoreState('success');
+        setTimeout(() => {
+          router.replace('/(tabs)/convert');
+        }, 2000);
+      } else {
+        setRestoreState('not-found');
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not look up subscription. Please try again.';
+      setRestoreError(msg);
+      setRestoreState('error');
+    }
+  }
+
+  // Dev-only test mode — bypasses all paywalls without a real payment
+  async function handleTestMode() {
     Alert.alert(
-      'Test mode activated',
-      'Free tier bypassed — you now have unlimited conversions for testing.',
-      [{ text: 'OK', onPress: () => router.back() }]
+      'Test Mode',
+      'This unlocks all features without a payment. Dev use only.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Activate',
+          onPress: async () => {
+            await setSubscriptionOverride(true);
+            router.back();
+          },
+        },
+      ]
     );
   }
 
@@ -80,10 +152,17 @@ export default function UpgradeScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.subtitle}>
-            Choose the plan that fits how you cook.
-          </Text>
+          <Text style={styles.subtitle}>Choose the plan that fits how you cook.</Text>
 
+          {/* Inline error if checkout session creation fails */}
+          {checkoutError ? (
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle-outline" size={18} color={Colors.error} />
+              <Text style={styles.errorText}>{checkoutError}</Text>
+            </View>
+          ) : null}
+
+          {/* Plan cards */}
           {PLANS.map((plan) => (
             <View
               key={plan.id}
@@ -125,34 +204,114 @@ export default function UpgradeScreen() {
                   style={[
                     styles.upgradeButton,
                     plan.highlight && styles.upgradeButtonHighlight,
+                    checkoutLoading === plan.id && styles.upgradeButtonLoading,
                   ]}
-                  onPress={() => handleUpgrade(plan.name)}
+                  onPress={() => handleUpgrade(plan.id)}
+                  disabled={checkoutLoading !== null}
                   activeOpacity={0.85}
                   accessibilityRole="button"
                   accessibilityLabel={`Upgrade to ${plan.name}`}
                 >
-                  <Text
-                    style={[
-                      styles.upgradeButtonText,
-                      plan.highlight && styles.upgradeButtonTextHighlight,
-                    ]}
-                  >
-                    Get {plan.name}
-                  </Text>
+                  {checkoutLoading === plan.id ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={plan.highlight ? Colors.textInverse : Colors.primary}
+                    />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.upgradeButtonText,
+                        plan.highlight && styles.upgradeButtonTextHighlight,
+                      ]}
+                    >
+                      Get {plan.name}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               )}
             </View>
           ))}
 
-          {/* Restore purchase */}
+          {/* Restore Purchase */}
+          <View style={styles.restoreSection}>
+            {restoreState === 'idle' && (
+              <TouchableOpacity
+                style={styles.restoreButton}
+                onPress={handleRestoreTap}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Restore purchase"
+              >
+                <Text style={styles.restoreText}>Already subscribed? Restore Purchase</Text>
+              </TouchableOpacity>
+            )}
+
+            {(restoreState === 'input' || restoreState === 'not-found' || restoreState === 'error') && (
+              <View style={styles.restoreInputContainer}>
+                <Text style={styles.restoreInputLabel}>Enter the email you used at checkout:</Text>
+                <TextInput
+                  style={styles.restoreInput}
+                  value={restoreEmail}
+                  onChangeText={setRestoreEmail}
+                  placeholder="your@email.com"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  onSubmitEditing={handleRestoreSubmit}
+                  accessibilityLabel="Email address for restore"
+                />
+                {restoreError ? (
+                  <Text style={styles.restoreError}>{restoreError}</Text>
+                ) : null}
+                {restoreState === 'not-found' ? (
+                  <Text style={styles.restoreError}>
+                    No active subscription found for that email.
+                  </Text>
+                ) : null}
+                <TouchableOpacity
+                  style={styles.restoreSubmitButton}
+                  onPress={handleRestoreSubmit}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.restoreSubmitText}>Look Up Subscription</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setRestoreState('idle')}
+                  style={styles.restoreCancelButton}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.restoreCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {restoreState === 'loading' && (
+              <View style={styles.restoreLoading}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={styles.restoreLoadingText}>Looking up your subscription…</Text>
+              </View>
+            )}
+
+            {restoreState === 'success' && (
+              <View style={styles.restoreSuccess}>
+                <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />
+                <Text style={styles.restoreSuccessText}>Subscription restored! Taking you in…</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Test mode — hidden at the bottom, for Kevin only */}
           <TouchableOpacity
-            style={styles.restoreButton}
-            onPress={handleRestorePurchase}
-            activeOpacity={0.7}
+            style={styles.testModeButton}
+            onPress={handleTestMode}
+            activeOpacity={0.5}
             accessibilityRole="button"
-            accessibilityLabel="Restore purchase"
+            accessibilityLabel="Test mode"
           >
-            <Text style={styles.restoreText}>Already subscribed? Restore Purchase</Text>
+            <Text style={styles.testModeText}>· · ·</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -203,6 +362,21 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: Spacing.xl,
     lineHeight: 22,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: Colors.errorLight,
+    borderRadius: Radius.md,
+    padding: Spacing.base,
+    marginBottom: Spacing.base,
+  },
+  errorText: {
+    fontSize: Typography.sm,
+    color: Colors.error,
+    flex: 1,
+    lineHeight: 20,
   },
   planCard: {
     backgroundColor: Colors.surface,
@@ -283,6 +457,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
+  upgradeButtonLoading: {
+    opacity: 0.7,
+  },
   upgradeButtonText: {
     fontSize: Typography.body,
     fontWeight: Typography.bold,
@@ -291,14 +468,97 @@ const styles = StyleSheet.create({
   upgradeButtonTextHighlight: {
     color: Colors.textInverse,
   },
+  restoreSection: {
+    marginTop: Spacing.sm,
+  },
   restoreButton: {
     alignItems: 'center',
     paddingVertical: Spacing.base,
-    marginTop: Spacing.sm,
   },
   restoreText: {
     fontSize: Typography.sm,
     color: Colors.textMuted,
     textDecorationLine: 'underline',
+  },
+  restoreInputContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.base,
+    gap: Spacing.sm,
+  },
+  restoreInputLabel: {
+    fontSize: Typography.sm,
+    color: Colors.textSecondary,
+    fontWeight: Typography.semibold,
+  },
+  restoreInput: {
+    height: TAP_TARGET,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.base,
+    fontSize: Typography.body,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.background,
+  },
+  restoreError: {
+    fontSize: Typography.xs,
+    color: Colors.error,
+  },
+  restoreSubmitButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    height: TAP_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.xs,
+  },
+  restoreSubmitText: {
+    fontSize: Typography.body,
+    fontWeight: Typography.bold,
+    color: Colors.textInverse,
+  },
+  restoreCancelButton: {
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  restoreCancelText: {
+    fontSize: Typography.sm,
+    color: Colors.textMuted,
+  },
+  restoreLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.base,
+  },
+  restoreLoadingText: {
+    fontSize: Typography.sm,
+    color: Colors.textSecondary,
+  },
+  restoreSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.base,
+  },
+  restoreSuccessText: {
+    fontSize: Typography.sm,
+    color: Colors.primary,
+    fontWeight: Typography.semibold,
+  },
+  testModeButton: {
+    alignItems: 'center',
+    paddingVertical: Spacing.base,
+    marginTop: Spacing.md,
+  },
+  testModeText: {
+    fontSize: Typography.sm,
+    color: Colors.border,
+    letterSpacing: 4,
   },
 });

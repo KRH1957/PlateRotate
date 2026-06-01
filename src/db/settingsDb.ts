@@ -1,5 +1,5 @@
 import { getDb } from './schema';
-import { DietId, AllergenId, UserSettings } from '../types';
+import { DietId, AllergenId, UserSettings, Tier } from '../types';
 
 export async function getSettings(): Promise<UserSettings> {
   const db = await getDb();
@@ -88,4 +88,37 @@ export async function resetOnboarding(): Promise<void> {
   await db.runAsync(
     "UPDATE settings SET onboarding_complete = 0, diet_id = NULL, allergens = '[]' WHERE id = 1;"
   );
+}
+
+// Returns the user's current subscription tier ('free', 'basic', or 'pro').
+// Check this for Pro-only features (meal plans). For Basic+, check isPaidUser().
+export async function getSubscriptionTier(): Promise<Tier> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ subscription_tier: string }>(
+    'SELECT subscription_tier FROM settings WHERE id = 1;'
+  );
+  return (row?.subscription_tier as Tier) ?? 'free';
+}
+
+// Activates a paid subscription tier after a confirmed Stripe payment.
+// Sets both subscription_tier AND subscription_override so all existing
+// paywall checks (which test subscription_override) work without changes.
+export async function setSubscription(tier: Tier, email?: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE settings SET
+       subscription_tier     = ?,
+       subscription_email    = ?,
+       subscription_override = ?
+     WHERE id = 1;`,
+    [tier, email ?? null, tier !== 'free' ? 1 : 0]
+  );
+}
+
+export async function getSubscriptionEmail(): Promise<string | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ subscription_email: string | null }>(
+    'SELECT subscription_email FROM settings WHERE id = 1;'
+  );
+  return row?.subscription_email ?? null;
 }

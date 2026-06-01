@@ -77,4 +77,22 @@ async function initSchema(database: SQLite.SQLiteDatabase): Promise<void> {
   } catch {
     // Column already exists on subsequent launches — safe to ignore
   }
+
+  // Migration: track which paid tier the user is on ('free', 'basic', 'pro')
+  try {
+    await database.execAsync(
+      "ALTER TABLE settings ADD COLUMN subscription_tier TEXT NOT NULL DEFAULT 'free';"
+    );
+  } catch {
+    // Already exists
+  }
+
+  // Migration: store the email used at checkout so we can restore subscriptions
+  try {
+    await database.execAsync(
+      'ALTER TABLE settings ADD COLUMN subscription_email TEXT;'
+    );
+  } catch {
+    // Already exists
+  }
 }
