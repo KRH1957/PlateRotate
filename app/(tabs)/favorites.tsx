@@ -11,8 +11,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getFavorites, deleteFavorite } from '../../src/db/favoritesDb';
-import { getSubscriptionOverride } from '../../src/db/settingsDb';
-import { Favorite, ConversionResult } from '../../src/types';
+import { getSubscriptionTier } from '../../src/db/settingsDb';
+import { Favorite, ConversionResult, Tier } from '../../src/types';
 import { DIETS } from '../../src/constants/diets';
 import ConversionResultCard from '../../src/components/ConversionResultCard';
 import { Colors, Typography, Spacing, Radius, TAP_TARGET } from '../../src/theme';
@@ -30,14 +30,14 @@ function formatDate(ts: number): string {
 export default function FavoritesScreen() {
   const [favorites, setFavorites] = useState<ParsedFavorite[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [hasOverride, setHasOverride] = useState(false);
+  const [tier, setTier] = useState<Tier>('free');
 
   useFocusEffect(
     useCallback(() => {
       async function load() {
-        const override = await getSubscriptionOverride();
-        setHasOverride(override);
-        if (!override) return; // Free users have no favorites to load
+        const currentTier = await getSubscriptionTier();
+        setTier(currentTier);
+        if (currentTier !== 'pro') return; // Favorites are Pro-only
         const rows = await getFavorites();
         const parsed: ParsedFavorite[] = [];
         for (const fav of rows) {
@@ -84,13 +84,13 @@ export default function FavoritesScreen() {
         <Text style={styles.title}>Favorites</Text>
         <Text style={styles.subtitle}>Conversions you've saved for quick reuse</Text>
 
-        {/* Free tier: favorites require Basic or Pro */}
-        {!hasOverride ? (
+        {/* Favorites are Pro-only */}
+        {tier !== 'pro' ? (
           <View style={styles.upgradeWall}>
             <Ionicons name="lock-closed-outline" size={56} color={Colors.border} />
-            <Text style={styles.upgradeTitle}>Favorites require Basic or Pro</Text>
+            <Text style={styles.upgradeTitle}>Favorites require Pro</Text>
             <Text style={styles.upgradeBody}>
-              Upgrade to save your best meal adaptations and access them instantly.
+              Upgrade to Pro to save your best meal adaptations and access them instantly.
             </Text>
             <TouchableOpacity
               style={styles.upgradeButton}

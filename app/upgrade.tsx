@@ -23,36 +23,40 @@ const PLANS = [
     name: 'Free',
     price: null,
     highlight: false,
+    comingSoon: false,
     features: [
-      '5 meal conversions total',
-      'No conversion history',
-      'No favorites',
+      '5 conversions total',
+      'All 6 diets',
     ],
   },
   {
     id: 'basic' as const,
     name: 'Basic',
-    price: '$2.99/month',
+    price: '$2.99/month or $29/year',
     highlight: false,
+    comingSoon: false,
     features: [
-      'Unlimited meal conversions',
-      'Save unlimited favorites',
+      'Unlimited conversions',
+      'All 6 diets',
+      'Allergen filters',
       'Conversion history',
     ],
   },
   {
     id: 'pro' as const,
     name: 'Pro',
-    price: '$5.99/month',
+    price: '$6.99/month or $69/year',
     highlight: true,
+    comingSoon: true,
     features: [
       'Everything in Basic',
-      '7-day meal plan generator',
-      'Printable grocery list',
-      'Priority support',
+      'Save unlimited favorites',
+      '7-day meal plan',
+      'Weekly grocery list',
+      'Print your plan',
     ],
   },
-] as const;
+];
 
 type PaidPlan = 'basic' | 'pro';
 type RestoreState = 'idle' | 'input' | 'loading' | 'success' | 'not-found' | 'error';
@@ -171,7 +175,9 @@ export default function UpgradeScreen() {
               {plan.highlight && (
                 <View style={styles.popularBadge}>
                   <Ionicons name="star" size={12} color={Colors.warning} />
-                  <Text style={styles.popularText}>Most popular</Text>
+                  <Text style={styles.popularText}>
+                    {plan.comingSoon ? 'Best Value · Coming June 15' : 'Best Value'}
+                  </Text>
                 </View>
               )}
 
@@ -182,7 +188,7 @@ export default function UpgradeScreen() {
                 {plan.price ? (
                   <Text style={styles.planPrice}>{plan.price}</Text>
                 ) : (
-                  <Text style={styles.planPriceFree}>Free forever</Text>
+                  <Text style={styles.planPriceFree}>Try it free</Text>
                 )}
               </View>
 
@@ -200,34 +206,40 @@ export default function UpgradeScreen() {
               </View>
 
               {plan.id !== 'free' && (
-                <TouchableOpacity
-                  style={[
-                    styles.upgradeButton,
-                    plan.highlight && styles.upgradeButtonHighlight,
-                    checkoutLoading === plan.id && styles.upgradeButtonLoading,
-                  ]}
-                  onPress={() => handleUpgrade(plan.id)}
-                  disabled={checkoutLoading !== null}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Upgrade to ${plan.name}`}
-                >
-                  {checkoutLoading === plan.id ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={plan.highlight ? Colors.textInverse : Colors.primary}
-                    />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.upgradeButtonText,
-                        plan.highlight && styles.upgradeButtonTextHighlight,
-                      ]}
-                    >
-                      Get {plan.name}
-                    </Text>
-                  )}
-                </TouchableOpacity>
+                plan.comingSoon ? (
+                  <View style={styles.comingSoonButton}>
+                    <Text style={styles.comingSoonButtonText}>Coming June 15</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[
+                      styles.upgradeButton,
+                      plan.highlight && styles.upgradeButtonHighlight,
+                      checkoutLoading === plan.id && styles.upgradeButtonLoading,
+                    ]}
+                    onPress={() => handleUpgrade(plan.id as 'basic' | 'pro')}
+                    disabled={checkoutLoading !== null}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Upgrade to ${plan.name}`}
+                  >
+                    {checkoutLoading === plan.id ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={plan.highlight ? Colors.textInverse : Colors.primary}
+                      />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.upgradeButtonText,
+                          plan.highlight && styles.upgradeButtonTextHighlight,
+                        ]}
+                      >
+                        Get {plan.name}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )
               )}
             </View>
           ))}
@@ -459,6 +471,21 @@ const styles = StyleSheet.create({
   },
   upgradeButtonLoading: {
     opacity: 0.7,
+  },
+  comingSoonButton: {
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: Radius.full,
+    height: TAP_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginTop: Spacing.xs,
+  },
+  comingSoonButtonText: {
+    fontSize: Typography.body,
+    fontWeight: Typography.semibold,
+    color: Colors.textMuted,
   },
   upgradeButtonText: {
     fontSize: Typography.body,

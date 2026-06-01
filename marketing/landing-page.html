@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlateRotate — Any Meal. Any Diet.</title>
+  <meta name="description" content="Enter any meal and PlateRotate tells you exactly how to adapt it for your diet — Keto, GLP-1, Mediterranean, Carnivore, and more. Your food data stays on your device.">
+  <style>
+    :root {
+      --bg:           #FAF8F4;
+      --bg-card:      #FFFFFF;
+      --bg-card-pro:  #F0F9F1;
+      --green:        #4A7C59;
+      --green-dark:   #3a6248;
+      --text:         #1A2E1A;
+      --muted:        #4A6A4A;
+      --subtle:       #7A9A7A;
+      --input-bg:     #FFFFFF;
+      --input-border: #B8CCB8;
+      --error:        #C0392B;
+      --modal-bg:     #FFFFFF;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.5;
+    }
+
+    /* ─── Layout wrapper ─── */
+    .page {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 48px 24px 40px;
+    }
+
+    /* ─── 1. Brand name ─── */
+    .brand {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .brand-name {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: var(--text);
+    }
+
+    .brand-name span {
+      color: var(--green);
+    }
+
+    /* ─── 2. Hero headline ─── */
+    .hero {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .headline {
+      font-size: 62px;
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+    }
+
+    .headline-line1 {
+      display: block;
+      color: var(--green);
+    }
+
+    .headline-line2 {
+      display: block;
+      color: var(--text);
+    }
+
+    /* ─── 3. Subheadline ─── */
+    .subhead {
+      font-size: 17px;
+      color: var(--muted);
+      line-height: 1.6;
+      max-width: 420px;
+      margin: 0 auto 32px;
+    }
+
+    /* ─── 4. Primary CTA ─── */
+    .cta-primary {
+      display: block;
+      width: 100%;
+      max-width: 320px;
+      margin: 0 auto 12px;
+      height: 60px;
+      background: var(--green);
+      color: #FFFFFF;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .cta-primary:hover  { background: var(--green-dark); }
+    .cta-primary:active { transform: scale(0.98); }
+
+    .cta-note {
+      text-align: center;
+      font-size: 13px;
+      color: var(--subtle);
+      margin-bottom: 56px;
+    }
+
+    /* ─── 5. How It Works ─── */
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--green);
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin-bottom: 56px;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      background: var(--bg-card);
+      border: 1px solid #DDE8DD;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .step-num {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--green);
+      min-width: 32px;
+      line-height: 1.2;
+      flex-shrink: 0;
+    }
+
+    .step-body {}
+
+    .step-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .step-desc {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .step-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .tag {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--green);
+      background: rgba(74, 124, 89, 0.08);
+      border: 1px solid rgba(74, 124, 89, 0.2);
+      border-radius: 4px;
+      padding: 3px 8px;
+    }
+
+    /* ─── 6. Pricing ─── */
+    .pricing-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+
+    .price-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(74, 124, 89, 0.15);
+      border-radius: 8px;
+      padding: 24px 20px 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .price-card.featured {
+      background: var(--bg-card-pro);
+      border-color: rgba(74, 124, 89, 0.4);
+      position: relative;
+    }
+
+    .featured-badge {
+      position: absolute;
+      top: -1px;
+      right: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #FFFFFF;
+      background: var(--green);
+      padding: 3px 10px;
+      border-radius: 0 0 6px 6px;
+    }
+
+    .price-tier {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 8px;
+    }
+
+    .price-amount {
+      font-size: 34px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .price-amount sub {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      vertical-align: baseline;
+    }
+
+    .price-cadence {
+      font-size: 13px;
+      color: var(--subtle);
+      margin-bottom: 16px;
+    }
+
+    .price-alt {
+      font-size: 12px;
+      color: var(--green);
+      font-weight: 600;
+      margin-top: -10px;
+      margin-bottom: 16px;
+    }
+
+    .price-features {
+      list-style: none;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .price-features li {
+      font-size: 14px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .price-features li::before {
+      content: '';
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: rgba(74, 124, 89, 0.15);
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .price-features li.included::before {
+      background: var(--green);
+      box-shadow: 0 0 0 2px rgba(74, 124, 89, 0.2);
+    }
+
+    .price-features li.excluded {
+      opacity: 0.4;
+    }
+
+    .btn-price {
+      display: block;
+      width: 100%;
+      height: 48px;
+      font-size: 15px;
+      font-weight: 700;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      border: none;
+    }
+
+    .btn-price:active { transform: scale(0.98); }
+
+    .btn-price.primary {
+      background: var(--green);
+      color: #FFFFFF;
+    }
+
+    .btn-price.primary:hover { background: var(--green-dark); }
+
+    .btn-price.secondary {
+      background: transparent;
+      color: var(--green);
+      border: 1.5px solid rgba(74, 124, 89, 0.4);
+    }
+
+    .btn-price.secondary:hover {
+      background: rgba(74, 124, 89, 0.07);
+    }
+
+    .btn-price.coming-soon {
+      background: transparent;
+      color: var(--subtle);
+      border: 1.5px solid #DDE8DD;
+      cursor: default;
+      opacity: 0.7;
+    }
+
+    /* ─── 7. Trust line ─── */
+    .trust-block {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .trust-line {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .trust-line strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* ─── 8. Footer ─── */
+    footer {
+      border-top: 1px solid rgba(74, 124, 89, 0.12);
+      padding-top: 24px;
+      text-align: center;
+    }
+
+    .footer-text {
+      font-size: 13px;
+      color: var(--subtle);
+    }
+
+    .footer-text a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .footer-text a:hover {
+      color: var(--text);
+    }
+
+    /* ─── Divider ─── */
+    .divider {
+      height: 1px;
+      background: rgba(74, 124, 89, 0.1);
+      margin: 0 0 48px;
+    }
+
+    /* ─── Modal overlay ─── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal-box {
+      background: var(--modal-bg);
+      border: 1px solid rgba(74, 124, 89, 0.2);
+      border-radius: 10px;
+      width: 100%;
+      max-width: 380px;
+      padding: 36px 28px 28px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 14px;
+      right: 16px;
+      background: none;
+      border: none;
+      color: var(--subtle);
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: color 0.1s, background 0.1s;
+    }
+
+    .modal-close:hover {
+      color: var(--text);
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    .modal-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--green);
+    }
+
+    .modal-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.2;
+      margin-top: -4px;
+    }
+
+    .modal-sub {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-top: -4px;
+    }
+
+    .email-input {
+      width: 100%;
+      height: 52px;
+      background: var(--input-bg);
+      border: 1.5px solid var(--input-border);
+      border-radius: 5px;
+      color: var(--text);
+      font-size: 16px;
+      padding: 0 16px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      margin-top: 2px;
+    }
+
+    .email-input::placeholder { color: var(--subtle); }
+
+    .email-input:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(74, 124, 89, 0.15);
+    }
+
+    .modal-error {
+      font-size: 13px;
+      color: var(--error);
+      display: none;
+      margin-top: -6px;
+    }
+
+    .btn-submit {
+      width: 100%;
+      height: 54px;
+      background: var(--green);
+      color: #FFFFFF;
+      font-size: 16px;
+      font-weight: 800;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .btn-submit:hover  { background: var(--green-dark); }
+    .btn-submit:active { transform: scale(0.98); }
+
+    .modal-confirm {
+      display: none;
+      text-align: center;
+      padding: 20px 0 8px;
+    }
+
+    .confirm-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(74, 124, 89, 0.12);
+      border: 2px solid var(--green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 22px;
+    }
+
+    .confirm-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .confirm-sub {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .modal-footer-note {
+      font-size: 12px;
+      color: var(--subtle);
+      text-align: center;
+      margin-top: -4px;
+    }
+
+    /* ─── Responsive: wider screens ─── */
+    @media (min-width: 540px) {
+      .headline { font-size: 80px; }
+      .subhead  { font-size: 18px; }
+    }
+
+    @media (min-width: 640px) {
+      .pricing-grid {
+        flex-direction: row;
+        align-items: stretch;
+      }
+
+      .price-card {
+        flex: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- 1. Brand name -->
+  <header class="brand">
+    <div class="brand-mark">
+      <div class="brand-icon">&#x1F37D;&#xFE0F;</div>
+      <span class="brand-name">Plate<span>Rotate</span></span>
+    </div>
+  </header>
+
+  <!-- 2 + 3. Hero + Subheadline -->
+  <section class="hero">
+    <h1 class="headline">
+      <span class="headline-line1">Any meal.</span>
+      <span class="headline-line2">Any diet.</span>
+    </h1>
+    <p class="subhead">
+      Input your meal. Get your conversion. Cook it.
+    </p>
+  </section>
+
+  <!-- 4. Primary CTA -->
+  <div style="text-align: center;">
+    <button class="cta-primary js-open-modal">Download Free</button>
+    <p class="cta-note">No account. No catch.</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- 5. How It Works -->
+  <p class="section-label">How it works</p>
+  <div class="steps">
+    <div class="step">
+      <span class="step-num">1</span>
+      <div class="step-body">
+        <p class="step-title">Choose your diet</p>
+        <div class="step-tags">
+          <span class="tag">&#x1F969; Carnivore</span>
+          <span class="tag">&#x1F9C0; Keto</span>
+          <span class="tag">&#x1F48A; GLP-1 Friendly</span>
+          <span class="tag">&#x1FAD2; Mediterranean</span>
+          <span class="tag">&#x1F9B4; Paleo</span>
+          <span class="tag">&#x1F33F; Anti-Inflammatory</span>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-num">2</span>
+      <div class="step-body">
+        <p class="step-title">Input your meal</p>
+        <p class="step-desc">Restaurant dish, home recipe, or whatever's on the table. Type it or speak it.</p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-num">3</span>
+      <div class="step-body">
+        <p class="step-title">Get your conversion</p>
+        <p class="step-desc">See exactly how to adapt it — what to swap, what to skip, what to keep. No guessing.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- 6. Pricing -->
+  <p class="section-label">Pick your plan</p>
+  <div class="pricing-grid">
+
+    <!-- Free -->
+    <div class="price-card">
+      <p class="price-tier">Free</p>
+      <p class="price-amount">$0</p>
+      <p class="price-cadence">Try it free</p>
+      <ul class="price-features">
+        <li class="included">5 conversions total</li>
+        <li class="included">All 6 diets included</li>
+      </ul>
+      <button class="btn-price secondary js-open-modal">Download Free</button>
+    </div>
+
+    <!-- Basic -->
+    <div class="price-card">
+      <p class="price-tier">Basic</p>
+      <p class="price-amount">$2<sub>.99/mo</sub></p>
+      <p class="price-cadence">Billed monthly</p>
+      <p class="price-alt">or $29/year — save $6.88</p>
+      <ul class="price-features">
+        <li class="included">Unlimited conversions</li>
+        <li class="included">All 6 diets</li>
+        <li class="included">Allergen filters</li>
+        <li class="included">Conversion history</li>
+      </ul>
+      <button class="btn-price secondary js-open-modal">Get Basic</button>
+    </div>
+
+    <!-- Pro -->
+    <div class="price-card featured">
+      <span class="featured-badge">Best Value</span>
+      <p class="price-tier">Pro</p>
+      <p class="price-amount">$6<sub>.99/mo</sub></p>
+      <p class="price-cadence">Billed monthly</p>
+      <p class="price-alt">or $69/year — save $14.88</p>
+      <ul class="price-features">
+        <li class="included">Everything in Basic</li>
+        <li class="included">Save favorites</li>
+        <li class="included">7-day meal plan</li>
+        <li class="included">Weekly grocery list</li>
+        <li class="included">Print your plan</li>
+      </ul>
+      <button class="btn-price coming-soon" disabled>Coming June 15</button>
+    </div>
+
+  </div>
+
+  <!-- 8. Footer -->
+  <footer>
+    <p class="footer-text">
+      &copy; 2026 KRH Digital &nbsp;&middot;&nbsp; <a href="https://platerotate.com">platerotate.com</a>
+    </p>
+  </footer>
+
+</div><!-- /page -->
+
+
+<!-- Email capture modal -->
+<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+
+  <div class="modal-box" id="modalBox">
+    <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+
+    <!-- Form state -->
+    <div id="modalForm">
+      <p class="modal-eyebrow">Free download</p>
+      <p class="modal-title" id="modalTitle">Get PlateRotate</p>
+      <p class="modal-sub">Enter your email to download free. Waitlist subscribers get 33% off Pro when it launches June 15 — offer expires June 30.</p>
+      <input
+        id="modalEmail"
+        class="email-input"
+        type="email"
+        placeholder="your@email.com"
+        autocomplete="email"
+        aria-label="Email address"
+      >
+      <p class="modal-error" id="modalError">Please enter a valid email address.</p>
+      <button class="btn-submit" id="modalSubmit">Download Free</button>
+      <p class="modal-footer-note">No spam. Unsubscribe anytime.</p>
+    </div>
+
+    <!-- Confirmation state -->
+    <div class="modal-confirm" id="modalConfirm">
+      <div class="confirm-icon">&#10003;</div>
+      <p class="confirm-title">Download starting!</p>
+      <p class="confirm-sub">PlateRotate is downloading now. Open the file on your Android device to install it.</p>
+    </div>
+
+  </div>
+</div>
+
+
+<script>
+  (function () {
+    var overlay    = document.getElementById('modalOverlay');
+    var closeBtn   = document.getElementById('modalClose');
+    var emailInput = document.getElementById('modalEmail');
+    var errorMsg   = document.getElementById('modalError');
+    var submitBtn  = document.getElementById('modalSubmit');
+    var formBlock  = document.getElementById('modalForm');
+    var confirmBlk = document.getElementById('modalConfirm');
+
+    // Wire up all CTA buttons
+    var ctaBtns = document.querySelectorAll('.js-open-modal');
+    ctaBtns.forEach(function (btn) {
+      btn.addEventListener('click', openModal);
+    });
+
+    function openModal() {
+      overlay.classList.add('open');
+      // Reset to form state every time
+      formBlock.style.display  = '';
+      confirmBlk.style.display = 'none';
+      emailInput.value = '';
+      errorMsg.style.display = 'none';
+      // Small delay so the transition feels natural
+      setTimeout(function () { emailInput.focus(); }, 50);
+    }
+
+    function closeModal() {
+      overlay.classList.remove('open');
+    }
+
+    function isValidEmail(val) {
+      return val.length > 3 && val.indexOf('@') > 0 && val.indexOf('.') > 2;
+    }
+
+    var APK_URL = 'https://github.com/KRH1957/PlateRotate/releases/download/v1.0.0/plate-rotate.apk';
+
+    function handleSubmit() {
+      var val = emailInput.value.trim();
+      if (!isValidEmail(val)) {
+        errorMsg.style.display = 'block';
+        emailInput.focus();
+        return;
+      }
+      // Log the email capture
+      console.log('PlateRotate email capture:', val);
+      // Trigger APK download immediately
+      var a = document.createElement('a');
+      a.href = APK_URL;
+      a.download = 'plate-rotate.apk';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Show confirmation
+      formBlock.style.display  = 'none';
+      confirmBlk.style.display = 'block';
+    }
+
+    // Button click
+    submitBtn.addEventListener('click', handleSubmit);
+
+    // Enter key in email field
+    emailInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') handleSubmit();
+    });
+
+    // Clear error as user types
+    emailInput.addEventListener('input', function () {
+      errorMsg.style.display = 'none';
+    });
+
+    // Close on overlay click
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) closeModal();
+    });
+
+    // Close on close button
+    closeBtn.addEventListener('click', closeModal);
+
+    // Close on Escape key
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && overlay.classList.contains('open')) {
+        closeModal();
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>

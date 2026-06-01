@@ -14,12 +14,12 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getSettings, getFreeConversionsUsed, incrementFreeConversions, getSubscriptionOverride } from '../../src/db/settingsDb';
+import { getSettings, getFreeConversionsUsed, incrementFreeConversions, getSubscriptionOverride, getSubscriptionTier } from '../../src/db/settingsDb';
 import { saveToHistory } from '../../src/db/historyDb';
 import { saveFavorite, deleteFavorite } from '../../src/db/favoritesDb';
 import { claudeHaikuConversion } from '../../src/modules/conversion/claudeHaiku';
 import { DIETS, ALLERGENS } from '../../src/constants/diets';
-import { DietId, AllergenId, ConversionResult } from '../../src/types';
+import { Tier, DietId, AllergenId, ConversionResult } from '../../src/types';
 import ConversionResultCard from '../../src/components/ConversionResultCard';
 import { Colors, Typography, Spacing, Radius, TAP_TARGET } from '../../src/theme';
 
@@ -37,6 +37,7 @@ export default function ConvertScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const [freeUsed, setFreeUsed] = useState(0);
   const [hasOverride, setHasOverride] = useState(false);
+  const [tier, setTier] = useState<Tier>('free');
   const [favoriteId, setFavoriteId] = useState<number | null>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -44,10 +45,11 @@ export default function ConvertScreen() {
   useFocusEffect(
     useCallback(() => {
       async function load() {
-        const [settings, used, override] = await Promise.all([
+        const [settings, used, override, currentTier] = await Promise.all([
           getSettings(),
           getFreeConversionsUsed(),
           getSubscriptionOverride(),
+          getSubscriptionTier(),
         ]);
         if (settings.dietId) {
           setDietId(settings.dietId);
@@ -56,6 +58,7 @@ export default function ConvertScreen() {
         setAllergens(settings.allergens);
         setFreeUsed(used);
         setHasOverride(override);
+        setTier(currentTier);
       }
       load();
     }, [])
@@ -112,8 +115,8 @@ export default function ConvertScreen() {
 
   async function handleToggleFavorite() {
     if (!result) return;
-    // Favorites are a paid feature — free tier users go to upgrade
-    if (!hasOverride) {
+    // Favorites are a Pro-only feature
+    if (tier !== 'pro') {
       router.push('/upgrade');
       return;
     }
@@ -296,7 +299,7 @@ export default function ConvertScreen() {
               <Ionicons name="calendar" size={20} color={Colors.primary} />
               <View style={styles.planTeaserText}>
                 <Text style={styles.planTeaserTitle}>7-Day Meal Plan</Text>
-                <Text style={styles.planTeaserSub}>Pro · $5.99/month</Text>
+                <Text style={styles.planTeaserSub}>Pro · $6.99/month</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.accent} />
             </TouchableOpacity>
