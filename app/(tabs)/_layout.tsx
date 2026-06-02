@@ -8,7 +8,7 @@ function TabIcon({ name, focused }: { name: IoniconsName; focused: boolean }) {
   return (
     <Ionicons
       name={focused ? name : (`${name}-outline` as IoniconsName)}
-      size={24}
+      size={28}
       color={focused ? Colors.tabActive : Colors.tabInactive}
     />
   );
@@ -23,14 +23,14 @@ export default function TabsLayout() {
           backgroundColor: Colors.tabBackground,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 8,
+          height: 80,
+          paddingBottom: 12,
+          paddingTop: 10,
         },
         tabBarActiveTintColor: Colors.tabActive,
         tabBarInactiveTintColor: Colors.tabInactive,
         tabBarLabelStyle: {
-          fontSize: Typography.xs,
+          fontSize: Typography.sm,
           fontWeight: Typography.medium,
         },
       }}
