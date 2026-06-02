@@ -111,7 +111,7 @@ export default function SettingsScreen() {
           </View>
           <View style={[styles.pricingRow, styles.pricingRowLast]}>
             <Text style={styles.pricingPlan}>Pro</Text>
-            <Text style={styles.pricingDetail}>$5.99/mo · + 7-day plans & grocery list</Text>
+            <Text style={styles.pricingDetail}>$6.99/mo · + 7-day plans & grocery list</Text>
           </View>
           <TouchableOpacity
             style={styles.upgradeButton}

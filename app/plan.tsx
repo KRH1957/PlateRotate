@@ -31,7 +31,7 @@ export default function PlanScreen() {
           {/* Pro badge */}
           <View style={styles.proBadge}>
             <Ionicons name="star" size={16} color={Colors.warning} />
-            <Text style={styles.proBadgeText}>Pro · $5.99/month or $59/year</Text>
+            <Text style={styles.proBadgeText}>Pro · $6.99/month or $69/year</Text>
           </View>
 
           {/* What you get */}
