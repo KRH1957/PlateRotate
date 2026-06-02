@@ -190,10 +190,6 @@ app.post('/create-checkout-session', requireAppToken, async (req, res) => {
         res.status(400).json({ error: 'plan must be "basic" or "pro".' });
         return;
     }
-    if (!body.successUrl || !body.cancelUrl) {
-        res.status(400).json({ error: 'successUrl and cancelUrl are required.' });
-        return;
-    }
     const priceId = body.plan === 'basic' ? STRIPE_PRICE_BASIC_MONTHLY : STRIPE_PRICE_PRO_MONTHLY;
     if (!priceId) {
         console.error(`Missing price ID for plan: ${body.plan}`);
