@@ -182,8 +182,13 @@ app.post('/create-checkout-session', requireAppToken, async (req, res) => {
         res.json({ url: session.url, sessionId: session.id });
     }
     catch (err) {
-        console.error('Stripe create-checkout-session error:', err);
-        res.status(500).json({ error: 'Could not start checkout. Please try again.' });
+        const stripeMsg = (err instanceof Error) ? err.message : String(err);
+        console.error('Stripe create-checkout-session error:', stripeMsg);
+        // Surface the real Stripe error so we can diagnose — generic fallback for prod
+        const userMsg = stripeMsg.includes('No such price') || stripeMsg.includes('invalid')
+            ? `Stripe error: ${stripeMsg}`
+            : 'Could not start checkout. Please try again.';
+        res.status(500).json({ error: userMsg, stripeError: stripeMsg });
     }
 });
 // Verifies a completed checkout session and returns the plan and email.
