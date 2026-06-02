@@ -202,7 +202,6 @@ app.post('/create-checkout-session', requireAppToken, async (req, res) => {
             line_items: [{ price: priceId, quantity: 1 }],
             success_url: `${PROXY_BASE_URL}/checkout-redirect?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${PROXY_BASE_URL}/checkout-cancel`,
-            customer_creation: 'always',
             allow_promotion_codes: true,
             metadata: { plan: body.plan },
         });
