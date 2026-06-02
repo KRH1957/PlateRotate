@@ -15,6 +15,10 @@ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_PRICE_BASIC_MONTHLY = process.env.STRIPE_PRICE_BASIC_MONTHLY;
 const STRIPE_PRICE_PRO_MONTHLY = process.env.STRIPE_PRICE_PRO_MONTHLY;
 const MODEL = 'claude-haiku-4-5-20251001';
+// Base URL of this proxy — used to construct HTTPS success/cancel URLs for Stripe.
+// Stripe live mode rejects custom URL schemes (platerotate://) — must be HTTPS.
+// The redirect pages below then deep-link back into the app.
+const PROXY_BASE_URL = process.env.PROXY_BASE_URL || 'https://platerotate-production.up.railway.app';
 
 // Log startup state — visible in Railway's log viewer
 console.log(`[startup] PlateRotate proxy starting on port ${PORT}`);
@@ -30,6 +34,38 @@ console.log(`[startup] STRIPE_PRICE_PRO_MONTHLY set: ${!!STRIPE_PRICE_PRO_MONTHL
 const stripe: Stripe | null = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 
 app.use(express.json({ limit: '16kb' }));
+
+// ─── Stripe Browser Redirect Pages ───────────────────────────────────────────
+// Stripe requires HTTPS URLs for success/cancel in live mode. These pages
+// receive the browser after payment and immediately deep-link back into the app.
+
+function redirectPage(title: string, body: string, deepLink: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{font-family:-apple-system,sans-serif;display:flex;flex-direction:column;
+align-items:center;justify-content:center;min-height:100vh;margin:0;
+background:#FAF8F4;color:#1A2E1A;text-align:center;padding:24px}
+h1{font-size:22px;margin-bottom:8px}p{color:#4A6A4A;margin-bottom:24px}
+a{display:inline-block;background:#4A7C59;color:#fff;padding:14px 28px;
+border-radius:999px;text-decoration:none;font-weight:600;font-size:16px}</style>
+</head><body><h1>${title}</h1><p>${body}</p>
+<a href="${deepLink}">Open PlateRotate</a>
+<script>setTimeout(function(){window.location.href="${deepLink}"},500);</script>
+</body></html>`;
+}
+
+app.get('/checkout-redirect', (req: Request, res: Response) => {
+  const sessionId = req.query['session_id'] as string | undefined;
+  if (!sessionId) { res.status(400).send('Missing session_id'); return; }
+  const deepLink = `platerotate://checkout-success?session_id=${encodeURIComponent(sessionId)}`;
+  res.setHeader('Content-Type', 'text/html');
+  res.send(redirectPage('Payment complete!', 'Returning you to PlateRotate…', deepLink));
+});
+
+app.get('/checkout-cancel', (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send(redirectPage('Checkout cancelled', 'No charge was made. Tap below to return.', 'platerotate://'));
+});
 
 // Rate limit: 30 requests per minute per IP — stops bots and accidental abuse
 const limiter = rateLimit({
@@ -174,8 +210,8 @@ app.post('/convert', requireAppToken, async (req: Request, res: Response): Promi
 
 interface CheckoutSessionBody {
   plan: 'basic' | 'pro';
-  successUrl: string;
-  cancelUrl: string;
+  successUrl?: string; // ignored — proxy constructs HTTPS URLs for Stripe live mode
+  cancelUrl?: string;  // ignored — proxy constructs HTTPS URLs for Stripe live mode
 }
 
 // Creates a Stripe Checkout session and returns the hosted payment URL.
@@ -209,8 +245,8 @@ app.post('/create-checkout-session', requireAppToken, async (req: Request, res: 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: body.successUrl,
-      cancel_url: body.cancelUrl,
+      success_url: `${PROXY_BASE_URL}/checkout-redirect?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${PROXY_BASE_URL}/checkout-cancel`,
       customer_creation: 'always',
       allow_promotion_codes: true,
       metadata: { plan: body.plan },

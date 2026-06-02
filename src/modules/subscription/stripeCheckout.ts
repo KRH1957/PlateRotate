@@ -2,13 +2,11 @@ import { SubscriptionModule, CheckoutParams, CheckoutResult, VerifyResult, Resto
 
 // The Stripe checkout flow never touches stripe.com directly from the app.
 // All API calls go through our proxy server, which holds the Stripe secret key.
+// The proxy constructs HTTPS success/cancel URLs for Stripe (live mode requires HTTPS).
+// Stripe redirects the browser to the proxy's /checkout-redirect page, which
+// then deep-links back into the app via platerotate://checkout-success?session_id=xxx.
 const PROXY_URL = process.env.EXPO_PUBLIC_PROXY_URL;
 const APP_TOKEN = process.env.EXPO_PUBLIC_APP_TOKEN;
-
-// Deep link the app registers in app.json as scheme: "platerotate".
-// Stripe replaces {CHECKOUT_SESSION_ID} with the real session ID on redirect.
-const SUCCESS_URL = 'platerotate://checkout-success?session_id={CHECKOUT_SESSION_ID}';
-const CANCEL_URL = 'platerotate://';
 
 function authHeaders() {
   return {
@@ -34,11 +32,7 @@ async function proxyPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function createCheckoutSession({ plan }: CheckoutParams): Promise<CheckoutResult> {
-  return proxyPost<CheckoutResult>('/create-checkout-session', {
-    plan,
-    successUrl: SUCCESS_URL,
-    cancelUrl: CANCEL_URL,
-  });
+  return proxyPost<CheckoutResult>('/create-checkout-session', { plan });
 }
 
 async function verifySession(sessionId: string): Promise<VerifyResult> {
