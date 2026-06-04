@@ -196,12 +196,20 @@ app.post('/create-checkout-session', requireAppToken, async (req, res) => {
         res.status(503).json({ error: 'This plan is not yet available. Please try again later.' });
         return;
     }
+    // Use client-provided URLs if they are HTTPS (web app flow).
+    // Fall back to proxy redirect pages that deep-link back into the mobile app.
+    const successUrl = body.successUrl?.startsWith('https://')
+        ? body.successUrl
+        : `${PROXY_BASE_URL}/checkout-redirect?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = body.cancelUrl?.startsWith('https://')
+        ? body.cancelUrl
+        : `${PROXY_BASE_URL}/checkout-cancel`;
     try {
         const session = await stripe.checkout.sessions.create({
             mode: 'subscription',
             line_items: [{ price: priceId, quantity: 1 }],
-            success_url: `${PROXY_BASE_URL}/checkout-redirect?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${PROXY_BASE_URL}/checkout-cancel`,
+            success_url: successUrl,
+            cancel_url: cancelUrl,
             allow_promotion_codes: true,
             metadata: { plan: body.plan },
         });

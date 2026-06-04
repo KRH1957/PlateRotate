@@ -210,8 +210,10 @@ app.post('/convert', requireAppToken, async (req: Request, res: Response): Promi
 
 interface CheckoutSessionBody {
   plan: 'basic' | 'pro';
-  successUrl?: string; // ignored — proxy constructs HTTPS URLs for Stripe live mode
-  cancelUrl?: string;  // ignored — proxy constructs HTTPS URLs for Stripe live mode
+  // Optional: if the client passes an HTTPS URL (e.g. web app origin), Stripe redirects there directly.
+  // If omitted, falls back to the proxy's /checkout-redirect deep-link page (mobile app flow).
+  successUrl?: string;
+  cancelUrl?: string;
 }
 
 // Creates a Stripe Checkout session and returns the hosted payment URL.
@@ -236,12 +238,21 @@ app.post('/create-checkout-session', requireAppToken, async (req: Request, res: 
     return;
   }
 
+  // Use client-provided URLs if they are HTTPS (web app flow).
+  // Fall back to proxy redirect pages that deep-link back into the mobile app.
+  const successUrl = body.successUrl?.startsWith('https://')
+    ? body.successUrl
+    : `${PROXY_BASE_URL}/checkout-redirect?session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = body.cancelUrl?.startsWith('https://')
+    ? body.cancelUrl
+    : `${PROXY_BASE_URL}/checkout-cancel`;
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${PROXY_BASE_URL}/checkout-redirect?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${PROXY_BASE_URL}/checkout-cancel`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       allow_promotion_codes: true,
       metadata: { plan: body.plan },
     });
