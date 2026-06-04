@@ -561,6 +561,58 @@
       margin-top: -4px;
     }
 
+    /* ─── Device-specific sections (shown via JS) ─── */
+    #ios-notify-section,
+    #desktop-msg-section {
+      display: none;
+      text-align: center;
+      margin-bottom: 56px;
+    }
+
+    .ios-heading {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+
+    .ios-body {
+      font-size: 16px;
+      color: var(--muted);
+      max-width: 340px;
+      margin: 0 auto 20px;
+      line-height: 1.6;
+    }
+
+    .ios-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 320px;
+      margin: 0 auto;
+    }
+
+    .ios-confirm {
+      display: none;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--green);
+      padding: 16px 0;
+    }
+
+    .desktop-heading {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .desktop-body {
+      font-size: 15px;
+      color: var(--subtle);
+      line-height: 1.6;
+    }
+
     /* ─── Responsive: wider screens ─── */
     @media (min-width: 540px) {
       .headline { font-size: 80px; }
@@ -602,10 +654,36 @@
     </p>
   </section>
 
-  <!-- 4. Primary CTA -->
-  <div style="text-align: center;">
+  <!-- 4. Primary CTA (Android / default) -->
+  <div id="cta-section" style="text-align: center;">
     <button class="cta-primary js-open-modal">Download Free</button>
     <p class="cta-note">No account. No catch.</p>
+  </div>
+
+  <!-- iOS: notification signup shown instead of download -->
+  <div id="ios-notify-section">
+    <p class="ios-heading">iOS coming soon</p>
+    <p class="ios-body">Enter your email and we'll notify you the moment PlateRotate hits the App Store.</p>
+    <div class="ios-form" id="iosForm">
+      <input
+        id="iosEmail"
+        class="email-input"
+        type="email"
+        placeholder="your@email.com"
+        autocomplete="email"
+        aria-label="Email address for iOS launch notification"
+      >
+      <p class="modal-error" id="iosError" style="text-align:left;">Please enter a valid email address.</p>
+      <button class="btn-submit" id="iosSubmit">Notify Me</button>
+    </div>
+    <p class="ios-confirm" id="iosConfirm">You're on the list! ✓</p>
+    <p class="cta-note" style="margin-top:10px;">No spam. Unsubscribe anytime.</p>
+  </div>
+
+  <!-- Desktop: redirect message shown instead of download -->
+  <div id="desktop-msg-section">
+    <p class="desktop-heading">PlateRotate is a mobile app.</p>
+    <p class="desktop-body">Visit this page on your Android phone to download.</p>
   </div>
 
   <div class="divider"></div>
@@ -741,6 +819,63 @@
 
 
 <script>
+  /* ── Device detection ── */
+  (function () {
+    var ua = navigator.userAgent || '';
+    var isIOS     = /iphone|ipad|ipod/i.test(ua);
+    var isAndroid = /android/i.test(ua);
+    var isDesktop = !isIOS && !isAndroid;
+
+    if (isIOS) {
+      document.getElementById('cta-section').style.display        = 'none';
+      document.getElementById('ios-notify-section').style.display = 'block';
+
+      /* Disable pricing download buttons — no Android APK on iOS */
+      document.querySelectorAll('.js-open-modal').forEach(function (btn) {
+        btn.disabled = true;
+        btn.style.opacity = '0.4';
+        btn.style.cursor = 'not-allowed';
+      });
+
+      /* Wire up iOS notification form */
+      var iosEmail   = document.getElementById('iosEmail');
+      var iosError   = document.getElementById('iosError');
+      var iosSubmit  = document.getElementById('iosSubmit');
+      var iosForm    = document.getElementById('iosForm');
+      var iosConfirm = document.getElementById('iosConfirm');
+
+      function isValidEmail(v) {
+        return v.length > 3 && v.indexOf('@') > 0 && v.indexOf('.') > 2;
+      }
+
+      function handleIosSubmit() {
+        var val = iosEmail.value.trim();
+        if (!isValidEmail(val)) {
+          iosError.style.display = 'block';
+          iosEmail.focus();
+          return;
+        }
+        console.log('PlateRotate iOS waitlist:', val);
+        iosForm.style.display    = 'none';
+        iosConfirm.style.display = 'block';
+      }
+
+      iosSubmit.addEventListener('click', handleIosSubmit);
+      iosEmail.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') handleIosSubmit();
+      });
+      iosEmail.addEventListener('input', function () {
+        iosError.style.display = 'none';
+      });
+    }
+
+    if (isDesktop) {
+      document.getElementById('cta-section').style.display          = 'none';
+      document.getElementById('desktop-msg-section').style.display  = 'block';
+    }
+  })();
+
+  /* ── Modal (Android / default flow) ── */
   (function () {
     var overlay    = document.getElementById('modalOverlay');
     var closeBtn   = document.getElementById('modalClose');

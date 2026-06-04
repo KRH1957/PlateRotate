@@ -66,6 +66,16 @@ export default function SettingsScreen() {
           {saving && <Text style={styles.savingLabel}>Saving…</Text>}
         </View>
 
+        {/* Quick-access Convert button */}
+        <TouchableOpacity
+          style={styles.convertShortcut}
+          onPress={() => router.navigate('/(tabs)/convert')}
+          accessibilityRole="button"
+          accessibilityLabel="Go to Convert"
+        >
+          <Text style={styles.convertShortcutText}>↩ Convert a Meal</Text>
+        </TouchableOpacity>
+
         {/* Diet preference */}
         <Text style={styles.sectionTitle}>Your Diet</Text>
         <Text style={styles.sectionSubtitle}>
@@ -270,5 +280,18 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textAlign: 'center',
     marginBottom: 4,
+  },
+  convertShortcut: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xl,
+  },
+  convertShortcutText: {
+    color: Colors.textInverse,
+    fontSize: Typography.lg,
+    fontWeight: Typography.bold,
   },
 });

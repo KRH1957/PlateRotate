@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -68,7 +67,8 @@ export default function ConvertScreen() {
     const trimmed = mealInput.trim();
     if (!trimmed) return;
     if (!dietId) {
-      Alert.alert('No diet selected', 'Go to Settings and pick a diet first.');
+      setErrorMessage('No diet selected. Go to Settings and pick a diet first.');
+      setScreenState('error');
       return;
     }
 

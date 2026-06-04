@@ -13,6 +13,13 @@
       "cache": {
         "disabled": true
       },
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false,
+        "buildConfiguration": "Release"
+      },
       "env": {
         "EXPO_PUBLIC_PROXY_URL": "https://platerotate-production.up.railway.app",
         "EXPO_PUBLIC_APP_TOKEN": "feb87ffc9dc5b1eb20be1baed86680a57a9bfc581e018c05a7fe63e002303a98",

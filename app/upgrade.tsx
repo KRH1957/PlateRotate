@@ -9,6 +9,7 @@ import {
   TextInput,
   Linking,
   Alert,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -74,9 +75,14 @@ export default function UpgradeScreen() {
     setCheckoutError('');
     try {
       const { url } = await stripeCheckoutModule.createCheckoutSession({ plan });
-      await Linking.openURL(url);
-      // User is now in the browser completing payment.
-      // Return happens via the platerotate://checkout-success deep link.
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        // Navigate in the same tab on web — Stripe redirects back to /checkout-success on return.
+        window.location.href = url;
+      } else {
+        await Linking.openURL(url);
+        // User is now in the browser completing payment.
+        // Return happens via the platerotate://checkout-success deep link.
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not start checkout. Please try again.';
       setCheckoutError(msg);
@@ -120,6 +126,13 @@ export default function UpgradeScreen() {
 
   // Dev-only test mode — bypasses all paywalls without a real payment
   async function handleTestMode() {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.confirm('Activate test mode? This unlocks all features without a payment. Dev use only.')) {
+        await setSubscriptionOverride(true);
+        router.back();
+      }
+      return;
+    }
     Alert.alert(
       'Test Mode',
       'This unlocks all features without a payment. Dev use only.',

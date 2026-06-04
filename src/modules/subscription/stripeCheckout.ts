@@ -1,10 +1,11 @@
+import { Platform } from 'react-native';
 import { SubscriptionModule, CheckoutParams, CheckoutResult, VerifyResult, RestoreResult } from './index';
 
 // The Stripe checkout flow never touches stripe.com directly from the app.
 // All API calls go through our proxy server, which holds the Stripe secret key.
-// The proxy constructs HTTPS success/cancel URLs for Stripe (live mode requires HTTPS).
-// Stripe redirects the browser to the proxy's /checkout-redirect page, which
-// then deep-links back into the app via platerotate://checkout-success?session_id=xxx.
+//
+// Mobile flow: proxy's /checkout-redirect page deep-links back via platerotate://checkout-success
+// Web flow: we pass the web app origin so Stripe redirects directly to /checkout-success on the same domain.
 const PROXY_URL = process.env.EXPO_PUBLIC_PROXY_URL;
 const APP_TOKEN = process.env.EXPO_PUBLIC_APP_TOKEN;
 
@@ -32,7 +33,17 @@ async function proxyPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function createCheckoutSession({ plan }: CheckoutParams): Promise<CheckoutResult> {
-  return proxyPost<CheckoutResult>('/create-checkout-session', { plan });
+  const body: { plan: string; successUrl?: string; cancelUrl?: string } = { plan };
+
+  // On web, tell the proxy to redirect Stripe straight back to this domain
+  // instead of using the mobile deep-link page.
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    const origin = window.location.origin;
+    body.successUrl = `${origin}/checkout-success?session_id={CHECKOUT_SESSION_ID}`;
+    body.cancelUrl = `${origin}/upgrade`;
+  }
+
+  return proxyPost<CheckoutResult>('/create-checkout-session', body);
 }
 
 async function verifySession(sessionId: string): Promise<VerifyResult> {

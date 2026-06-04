@@ -29,6 +29,9 @@ export default function WelcomeScreen() {
           <FeatureRow emoji="📱" text="Works 100% offline — no account needed" />
         </View>
 
+        {/* Platform availability */}
+        <Text style={styles.availability}>Available on Android. iOS coming soon.</Text>
+
         {/* CTA */}
         <TouchableOpacity
           style={styles.button}
@@ -119,6 +122,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.body,
     color: Colors.textPrimary,
     flex: 1,
+  },
+  availability: {
+    fontSize: Typography.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    fontWeight: Typography.regular,
   },
   button: {
     backgroundColor: Colors.primary,

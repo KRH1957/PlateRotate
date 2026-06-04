@@ -1,0 +1,9 @@
+[build]
+  publish = "dist"
+  command = "npx expo export --platform web"
+
+# SPA routing — all paths serve index.html and expo-router handles navigation
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
